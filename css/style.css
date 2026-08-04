@@ -280,14 +280,6 @@ body {
   color: var(--text);
   border: 1px solid #31405e;
 }
-.btn-danger-link {
-  background: transparent;
-  color: #7a8499;
-  font-size: 12px;
-  text-decoration: underline;
-  padding: 6px 0;
-}
-.btn-danger-link:hover { color: var(--up); }
 
 /* 结算弹窗 */
 .result .result-emoji { font-size: 56px; margin-bottom: 6px; }
@@ -305,6 +297,12 @@ body {
 .result-detail { font-size: 12px; color: var(--sub); margin-top: 8px; }
 
 .result-btns { display: flex; flex-direction: column; gap: 10px; }
+.upload-msg {
+  min-height: 16px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--up);
+}
 
 /* 排行榜 */
 .rank-list {
@@ -341,6 +339,46 @@ body {
 .rank-profit { font-weight: 700; font-variant-numeric: tabular-nums; flex-shrink: 0; }
 .rank-empty { color: var(--sub); font-size: 13px; text-align: center; padding: 24px 0; }
 .rank-tip { font-size: 11px; color: var(--sub); margin-bottom: 10px; }
+.rank-btns { display: flex; gap: 10px; }
+.rank-btns .btn { flex: 1; }
+
+/* 分享收益弹窗 */
+.share-modal { width: 380px; }
+.share-preview {
+  margin: 14px 0;
+  max-height: 54vh;
+  overflow-y: auto;
+  border-radius: 10px;
+}
+.share-preview img {
+  display: block;
+  margin: 0 auto;
+  max-width: 100%;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.45);
+}
+
+/* 右下角 GitHub 链接 */
+.github-link {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 50;
+  background: rgba(22,29,43,.92);
+  border: 1px solid #2c3a58;
+  color: var(--sub);
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  text-decoration: none;
+  transition: all .2s;
+  box-shadow: 0 4px 14px rgba(0,0,0,.35);
+}
+.github-link:hover {
+  color: var(--gold);
+  border-color: rgba(240,185,11,.5);
+  transform: translateY(-2px);
+}
 
 /* ---------- 响应式 ---------- */
 @media (max-width: 900px) {

@@ -8,7 +8,7 @@ const GAME_DURATION = 60;        // 秒
 const INIT_CASH = 10000;         // 初始资金
 const INIT_PRICE = 100;          // 初始股价
 const TRADE_FEE_RATE = 0.0005;   // 手续费：交易额的 0.05%
-const RECORD_KEY = 'stock-master-records';
+const STOCK_NAME = 'SNK-格力士'; // 股票名称（上传成绩用）
 
 const $ = (id) => document.getElementById(id);
 
@@ -105,11 +105,12 @@ const Game = {
     $('name-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') this.startGame(); });
     $('btn-upload').addEventListener('click', () => this.uploadScore());
     $('btn-again').addEventListener('click', () => this.again());
+    $('btn-rank-from-start').addEventListener('click', () => this.showRank());
+    $('btn-rank-from-result').addEventListener('click', () => this.showRank());
     $('btn-rank-close').addEventListener('click', () => hideModal('rank-modal'));
-    $('btn-rank-clear').addEventListener('click', () => {
-      localStorage.removeItem(RECORD_KEY);
-      this.showRank();
-    });
+    $('btn-share-rank').addEventListener('click', () => this.shareResult());
+    $('btn-share-save').addEventListener('click', () => this.saveShare());
+    $('btn-share-close').addEventListener('click', () => hideModal('share-modal'));
   },
 
   totalAssets() {
@@ -209,6 +210,7 @@ const Game = {
 
     this.lastResult = {
       name: this.name,
+      stock: STOCK_NAME,
       profit: Math.round(profit * 100) / 100,
       rate: Math.round(rate * 10000) / 10000,
       title: t.title,
@@ -221,39 +223,69 @@ const Game = {
     this.render();
   },
 
-  /* ---------- 上传成绩（存本机 localStorage） ---------- */
-  uploadScore() {
+  /* ---------- 上传成绩（Upstash Redis） ---------- */
+  async uploadScore() {
     const r = this.lastResult;
     if (!r) return;
     const btn = $('btn-upload');
     btn.disabled = true;
     btn.textContent = '上传中…';
+    $('upload-msg').textContent = '';
 
-    setTimeout(() => {
-      const list = JSON.parse(localStorage.getItem(RECORD_KEY) || '[]');
-      list.push(r);
-      list.sort((a, b) => b.rate - a.rate);
-      localStorage.setItem(RECORD_KEY, JSON.stringify(list.slice(0, 100)));
+    try {
+      await uploadScoreToRedis(r);
       hideModal('result-modal');
       this.showRank();
-    }, 700);
+    } catch (e) {
+      $('upload-msg').textContent = '上传失败：' + (e.message || '网络错误') + '，请重试';
+      btn.disabled = false;
+      btn.textContent = '上传成绩';
+    }
   },
 
-  showRank() {
-    const list = JSON.parse(localStorage.getItem(RECORD_KEY) || '[]');
-    const el = $('rank-list');
-    if (!list.length) {
-      el.innerHTML = '<div class="rank-empty">暂无成绩，快去玩一局吧！</div>';
-    } else {
-      el.innerHTML = list.slice(0, 20).map((r, i) => `
-        <div class="rank-row">
-          <span class="rank-no ${i < 3 ? 'top' : ''}">${i + 1}</span>
-          <span class="rank-name">${escapeHtml(r.name)}</span>
-          <span class="rank-title">${r.emoji || ''} ${escapeHtml(r.title)}</span>
-          <span class="rank-profit ${r.profit >= 0 ? 'up' : 'down'}">${(r.rate * 100).toFixed(1)}%</span>
-        </div>`).join('');
-    }
+  /* ---------- 排行榜（从 Redis 实时拉取） ---------- */
+  async showRank() {
     showModal('rank-modal');
+    const el = $('rank-list');
+    el.innerHTML = '<div class="rank-empty">加载中…</div>';
+    // 没有本局成绩时不可分享（从开始弹窗进入排行榜的场景）
+    $('btn-share-rank').disabled = !this.lastResult;
+    try {
+      const list = await fetchRanking(20);
+      if (!list.length) {
+        el.innerHTML = '<div class="rank-empty">排行榜还是空的，快来抢第一名！</div>';
+      } else {
+        el.innerHTML = list.map((r, i) => `
+          <div class="rank-row">
+            <span class="rank-no ${i < 3 ? 'top' : ''}">${i + 1}</span>
+            <span class="rank-name">${escapeHtml(r.name)}</span>
+            <span class="rank-title">${escapeHtml(r.stock)} ${escapeHtml(r.title)}</span>
+            <span class="rank-profit ${r.profit >= 0 ? 'up' : 'down'}">${(r.rate * 100).toFixed(1)}%</span>
+          </div>`).join('');
+      }
+    } catch (e) {
+      el.innerHTML = '<div class="rank-empty">排行榜加载失败，请检查网络后重试</div>';
+    }
+  },
+
+  /* ---------- 分享收益（生成截图卡片） ---------- */
+  async shareResult() {
+    const r = this.lastResult;
+    if (!r) return;
+    const dataUrl = await buildShareCard(r);
+    this.shareDataUrl = dataUrl;
+    $('share-img').src = dataUrl;
+    showModal('share-modal');
+  },
+
+  saveShare() {
+    if (!this.shareDataUrl) return;
+    const a = document.createElement('a');
+    a.href = this.shareDataUrl;
+    a.download = '炒股达人-收益.png';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   },
 
   /* ---------- 再来一局 ---------- */
@@ -333,5 +365,114 @@ const Game = {
     else $('chart-status').textContent = '进行中';
   },
 };
+
+/* ============================================================
+ * buildShareCard —— 生成收益分享截图（竖版 PNG 卡片）
+ * 内容：游戏名 / 玩家名 / 称号 / 收益 / 底部游戏地址二维码
+ * ============================================================ */
+const SHARE_URL = 'https://game.ikeno.top/';
+const SHARE_FONT = '-apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif';
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+async function buildShareCard(rec) {
+  const W = 640, H = 960;
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.textAlign = 'center';
+
+  // 背景渐变
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#1b2438');
+  bg.addColorStop(0.6, '#131a2b');
+  bg.addColorStop(1, '#0d1117');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // 装饰圆环
+  ctx.strokeStyle = 'rgba(240,185,11,0.08)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(560, 140, 90, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(-40, 800, 130, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // 标题
+  ctx.fillStyle = '#f0b90b';
+  ctx.font = 'bold 44px ' + SHARE_FONT;
+  ctx.fillText('📈 炒股达人', W / 2, 110);
+  ctx.fillStyle = '#8b94a8';
+  ctx.font = '18px ' + SHARE_FONT;
+  ctx.fillText('SNK-格力士 · 模拟炒股', W / 2, 150);
+
+  // 分隔线
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.beginPath();
+  ctx.moveTo(90, 190);
+  ctx.lineTo(W - 90, 190);
+  ctx.stroke();
+
+  // 玩家名 + 称号
+  ctx.fillStyle = '#e6ecf5';
+  ctx.font = 'bold 30px ' + SHARE_FONT;
+  ctx.fillText(rec.name || '匿名玩家', W / 2, 262);
+  ctx.fillStyle = rec.profit >= 0 ? '#ff8a8c' : '#6ee7b7';
+  ctx.font = 'bold 50px ' + SHARE_FONT;
+  ctx.fillText((rec.emoji || '') + ' ' + rec.title, W / 2, 338);
+
+  // 收益框
+  ctx.fillStyle = 'rgba(255,255,255,0.04)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.roundRect(80, 386, W - 160, 196, 18);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = '#8b94a8';
+  ctx.font = '20px ' + SHARE_FONT;
+  ctx.fillText('本局收益', W / 2, 446);
+  const up = rec.profit >= 0;
+  ctx.fillStyle = up ? '#ff4d4f' : '#2ebd85';
+  ctx.font = 'bold 62px ' + SHARE_FONT;
+  ctx.fillText((up ? '+' : '-') + fmtMoney(Math.abs(rec.profit)), W / 2, 518);
+  ctx.font = 'bold 26px ' + SHARE_FONT;
+  ctx.fillText((up ? '+' : '') + (rec.rate * 100).toFixed(2) + '%', W / 2, 560);
+
+  // 底部二维码卡片
+  ctx.fillStyle = 'rgba(255,255,255,0.05)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+  ctx.beginPath();
+  ctx.roundRect(160, 626, W - 320, 252, 18);
+  ctx.fill();
+  ctx.stroke();
+
+  // 二维码（qrcode-generator 全局 qrcode）
+  const qr = qrcode(0, 'M');
+  qr.addData(SHARE_URL);
+  qr.make();
+  const qrImg = await loadImage(qr.createDataURL(6, 2));
+  ctx.drawImage(qrImg, W / 2 - 90, 644, 180, 180);
+
+  ctx.fillStyle = '#e6ecf5';
+  ctx.font = 'bold 22px ' + SHARE_FONT;
+  ctx.fillText('扫码立即来玩', W / 2, 850);
+  ctx.fillStyle = '#f0b90b';
+  ctx.font = '16px ' + SHARE_FONT;
+  ctx.fillText(SHARE_URL, W / 2, 880);
+
+  return canvas.toDataURL('image/png');
+}
 
 document.addEventListener('DOMContentLoaded', () => Game.init());

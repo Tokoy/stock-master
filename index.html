@@ -70,6 +70,7 @@
     <p class="modal-sub">模拟炒股 60 秒，看看你是股神还是韭菜？</p>
     <input type="text" id="name-input" placeholder="请输入你的名字" maxlength="12" autocomplete="off">
     <button class="btn btn-primary" id="btn-start">开始模拟</button>
+    <button class="btn btn-ghost" id="btn-rank-from-start">查看玩家排行</button>
     <p class="modal-foot">SNK-格力士 · 初始资金 ¥10,000 · 1 分钟一轮</p>
   </div>
 </div>
@@ -88,26 +89,46 @@
     </div>
     <div class="result-btns">
       <button class="btn btn-primary" id="btn-upload">上传成绩</button>
+      <button class="btn btn-ghost" id="btn-rank-from-result">查看玩家排行</button>
       <button class="btn btn-ghost" id="btn-again">再来一局</button>
     </div>
+    <p class="upload-msg" id="upload-msg"></p>
   </div>
 </div>
 
 <!-- 排行榜弹窗 -->
 <div class="modal-mask hidden" id="rank-modal">
   <div class="modal">
-    <h2>🏆 本地排行榜</h2>
+    <h2>🏆 玩家排行榜</h2>
     <div class="rank-list" id="rank-list"></div>
-    <div class="rank-tip">成绩保存在本机浏览器（localStorage）</div>
-    <div class="result-btns">
+    <div class="rank-tip">成绩实时存储于 Upstash Redis</div>
+    <div class="rank-btns">
+      <button class="btn btn-primary" id="btn-share-rank">分享收益</button>
       <button class="btn btn-ghost" id="btn-rank-close">关闭</button>
-      <button class="btn btn-danger-link" id="btn-rank-clear">清空记录</button>
     </div>
   </div>
 </div>
 
+<!-- 分享收益弹窗 -->
+<div class="modal-mask hidden" id="share-modal">
+  <div class="modal share-modal">
+    <h2>📤 分享收益</h2>
+    <div class="share-preview">
+      <img id="share-img" alt="收益分享卡片">
+    </div>
+    <div class="result-btns">
+      <button class="btn btn-primary" id="btn-share-save">保存图片</button>
+      <button class="btn btn-ghost" id="btn-share-close">关闭</button>
+    </div>
+  </div>
+</div>
+
+<a class="github-link" href="https://github.com/Tokoy/stock-master" target="_blank" rel="noopener noreferrer">⭐ GitHub 项目源码</a>
+
 <script src="js/market.js"></script>
 <script src="js/chart.js"></script>
+<script src="js/redis.js"></script>
+<script src="js/qrcode.js"></script>
 <script src="js/game.js"></script>
 </body>
 </html>
