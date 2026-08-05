@@ -142,7 +142,7 @@ body {
 }
 #chart { display: block; }
 
-/* ---------- 新闻栏（事件卡滚动快讯） ---------- */
+/* ---------- 新闻栏（事件卡触发时显示一次） ---------- */
 .news-bar {
   display: flex;
   align-items: center;
@@ -169,32 +169,29 @@ body {
   flex: 1;
   overflow: hidden;
   height: 100%;
-  position: relative;
+  display: flex;
+  align-items: center;
 }
 .news-track {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 48px;
   height: 100%;
   white-space: nowrap;
-  padding-left: 100%;
-  animation: newsScroll linear infinite;
-  will-change: transform;
-}
-@keyframes newsScroll {
-  from { transform: translateX(0); }
-  to   { transform: translateX(-50%); }
 }
 .news-item {
   font-size: 13px;
   color: #aab4c8;
   white-space: nowrap;
-  flex-shrink: 0;
+  animation: newsFadeIn .3s ease;
 }
-.news-item.dim { color: #7a8499; }
+.news-item.dim { color: #7a8499; font-size: 12px; }
 .news-item.hot-up   { color: #ff5c5f; font-weight: 700; }
 .news-item.hot-down { color: #34d399; font-weight: 700; }
 .news-item.hot-gold { color: #fbbf24; font-weight: 700; }
+@keyframes newsFadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}
 
 /* ---------- 操作按钮 ---------- */
 .actions { display: flex; gap: 10px; margin-top: 12px; }
@@ -366,21 +363,8 @@ body {
   align-items: center;
   font-size: 12px;
   color: var(--sub);
-  margin-bottom: 6px;
+  margin-bottom: 10px;
 }
-.card-level {
-  color: #3ddc97;
-  border: 1px solid rgba(61,220,151,.4);
-  border-radius: 4px;
-  padding: 0 6px;
-  font-weight: 700;
-}
-.card-level.hard {
-  color: #ff5c5f;
-  border-color: rgba(255,92,95,.5);
-}
-.card-style { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
-.card-desc { font-size: 11px; color: var(--sub); line-height: 1.5; margin-bottom: 10px; }
 .card-btn {
   text-align: center;
   font-size: 12px;

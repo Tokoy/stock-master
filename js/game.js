@@ -9,7 +9,7 @@
 const INIT_CASH = 10000;         // 初始资金
 const TRADE_FEE_RATE = 0.0005;   // 手续费：交易额的 0.05%
 
-/* ---------------- 股票配置 ---------------- */
+/* ---------------- 股票配置（不展示玩法介绍，避免玩家提前知道套路） ---------------- */
 const STOCKS = {
   snk: {
     key: 'snk',
@@ -17,9 +17,6 @@ const STOCKS = {
     tag: 'SNK',
     price: 100,
     duration: 60,
-    level: '新手',
-    style: '游资庄股',
-    desc: '快节奏收割，操作直接触发庄家反应',
     engine: 'classic',
     emoji: '🎯',
   },
@@ -28,30 +25,14 @@ const STOCKS = {
     name: '大米科技',
     tag: 'DM',
     price: 50,
-    duration: 90,
-    level: '硬核',
-    style: '事件驱动妖股',
-    desc: '隐藏剧本 · 事件卡 · 涨跌停',
+    duration: 60,
     engine: 'damai',
     emoji: '🐉',
   },
 };
 
 /* ---------------- 氛围新闻池（非事件的背景滚动） ---------------- */
-const AMBIENT_NEWS = [
-  '两市午后震荡，沪指小幅翻红',
-  '北向资金今日净流入 32 亿',
-  '半导体板块异动拉升，多股涨停',
-  '央行开展逆回购操作，流动性合理充裕',
-  '白酒股集体回调，资金转向题材股',
-  '证监会：将加强上市公司日常监管',
-  '新能源车销量大增，产业链集体走强',
-  '市场情绪回暖，涨停家数明显增加',
-  '机构：短期震荡不改中期向好格局',
-  'IPO 节奏放缓，次新股表现活跃',
-  '两市成交额连续三日破万亿',
-  '主力资金尾盘抢筹，多股直线拉升',
-];
+/* 已移除：事件新闻改为“触发一次显示一次”，不做背景滚动，避免信息过载 */
 
 const $ = (id) => document.getElementById(id);
 
@@ -117,52 +98,36 @@ function showModal(id) { $(id).classList.remove('hidden'); }
 function hideModal(id) { $(id).classList.add('hidden'); }
 
 /* ============================================================
- * NewsBar —— 新闻栏（事件卡的展示载体，滚动快讯条）
+ * NewsBar —— 新闻栏（事件卡的展示载体）
+ * 不做滚动刷屏：平时安静，关键事件触发时显示一次，几秒后淡出。
  * ============================================================ */
 const NewsBar = {
-  items: [],        // [{ text, cls }]
   timer: null,
 
   init() {
-    // 无操作时也保持有背景新闻滚动
-    this.renderAmbient();
+    this.idle();
   },
 
-  _render() {
+  _set(text, cls) {
     const track = $('news-track');
-    const html = this.items.map(it =>
-      `<span class="news-item ${it.cls || ''}">${escapeHtml(it.text)}</span>`
-    ).join('');
-    // 复制两份实现无缝循环滚动
-    track.innerHTML = html + html;
-    // 动画时长按内容量估算，保证匀速
-    const totalChars = this.items.reduce((s, it) => s + it.text.length, 0);
-    track.style.animationDuration = Math.max(24, totalChars * 0.5) + 's';
+    track.innerHTML = `<span class="news-item ${cls}">${escapeHtml(text)}</span>`;
   },
 
-  renderAmbient() {
-    const shuffled = AMBIENT_NEWS.slice().sort(() => Math.random() - 0.5);
-    this.items = shuffled.slice(0, 6).map(t => ({ text: t, cls: 'dim' }));
-    this._render();
+  idle() {
+    this._set('等待市场快讯…', 'dim');
   },
 
-  // 事件新闻：插入到最前高亮，几秒后并入背景池继续滚动
+  // 事件触发：显示一次，5 秒后恢复安静
   pushEvent(rec) {
     const cls = {
       good: 'hot-up', limitup: 'hot-up', trap: 'hot-up',
       bad: 'hot-down', limitdown: 'hot-down',
       ambiguous: 'hot-gold',
     }[rec.type] || 'hot-gold';
-    this.items.unshift({ text: `${rec.emoji} ${rec.text}`, cls });
-    if (this.items.length > 8) this.items.pop();
-    this._render();
+    this._set(`${rec.emoji} ${rec.text}`, cls);
 
     clearTimeout(this.timer);
-    this.timer = setTimeout(() => {
-      // 事件新闻降级为普通条目继续滚动
-      this.items = this.items.map((it, i) => i === 0 ? { ...it, cls: 'dim' } : it);
-      this._render();
-    }, 6000);
+    this.timer = setTimeout(() => this.idle(), 5000);
   },
 };
 
@@ -211,7 +176,7 @@ const Game = {
     $('name-input').focus();
   },
 
-  /* ---------- 选股卡片渲染 ---------- */
+  /* ---------- 选股卡片渲染（只给名字/价格/时长，不给玩法介绍） ---------- */
   renderStockCards() {
     const wrap = $('stock-cards');
     wrap.innerHTML = Object.values(STOCKS).map(st => `
@@ -224,10 +189,7 @@ const Game = {
         <div class="card-meta">
           <span>¥${st.price.toFixed(0)} 起</span>
           <span>${st.duration}s</span>
-          <span class="card-level ${st.level === '硬核' ? 'hard' : ''}">${st.level}</span>
         </div>
-        <div class="card-style">${st.style}</div>
-        <div class="card-desc">${st.desc}</div>
         <div class="card-btn">点击选择 →</div>
       </div>`).join('');
     wrap.querySelectorAll('.stock-card').forEach(card => {
@@ -349,7 +311,7 @@ const Game = {
     this.chart.marks = [];
     this.chart.events = [];
     this.chart.setData(this.market.bars);
-    NewsBar.renderAmbient();
+    NewsBar.idle();
 
     clearInterval(this.timerId);
     this.timerId = setInterval(() => this.tick(), 1000);
@@ -512,7 +474,7 @@ const Game = {
     this.chart.marks = [];
     this.chart.events = [];
     this.chart.setData(this.market.bars);
-    NewsBar.renderAmbient();
+    NewsBar.idle();
 
     $('name-input').value = this.name;
     this.render();

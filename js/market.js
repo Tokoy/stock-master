@@ -345,17 +345,15 @@ class DamaiMarketEngine {
     this.price = p;
   }
 
-  /* ---------- 事件计划：2~4 个，均匀散布在 8s~70s，重磅事件保底 ---------- */
+  /* ---------- 事件计划：2~3 个，均匀散布在 8s~50s，重磅事件保底 ---------- */
   _planEvents() {
-    const n = 2 + Math.floor(Math.random() * 3); // 2~4
+    const n = 2 + Math.floor(Math.random() * 2); // 2~3
     const slots = [];
-    for (let i = 0; i < n; i++) {
-      slots.push(8 + Math.floor(Math.random() * 62));
-    }
-    slots.sort((a, b) => a - b);
-    // 间隔太近的事件推开，避免同屏触发
-    for (let i = 1; i < slots.length; i++) {
-      if (slots[i] - slots[i - 1] < 10) slots[i] = slots[i - 1] + 10;
+    // 递增生成，保证间隔 12s 以上
+    let t = 8 + Math.floor(Math.random() * 8); // 首个事件 8~16s
+    for (let i = 0; i < n && t <= 50; i++) {
+      slots.push(t);
+      t += 12 + Math.floor(Math.random() * 9); // 间隔 12~20s
     }
 
     const pool = DAMAI_EVENT_POOL.slice();
