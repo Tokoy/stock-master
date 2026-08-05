@@ -445,7 +445,22 @@ body {
   overflow-y: auto;
   margin: 8px 0 12px;
   text-align: left;
+  scrollbar-width: thin;                 /* Firefox */
+  scrollbar-color: #33415e transparent;
+  padding-right: 4px;
 }
+/* WebKit / Chromium 自定义滚动条 */
+.rank-list::-webkit-scrollbar { width: 6px; }
+.rank-list::-webkit-scrollbar-track {
+  background: rgba(255,255,255,.03);
+  border-radius: 3px;
+}
+.rank-list::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #3a4a6e, #2c3a58);
+  border-radius: 3px;
+}
+.rank-list::-webkit-scrollbar-thumb:hover { background: #4a5d88; }
+.rank-list::-webkit-scrollbar-corner { background: transparent; }
 .rank-row {
   display: flex;
   align-items: center;
@@ -470,7 +485,12 @@ body {
 }
 .rank-no.top { background: rgba(240,185,11,.2); color: var(--gold); }
 .rank-name { font-weight: 600; flex: 0 0 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rank-title { flex: 1; color: var(--sub); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank-title { flex: 1; color: var(--sub); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.rank-title .rank-stock {
+  color: #5d6b85;
+  font-size: 10px;
+  letter-spacing: .3px;
+}
 .rank-profit { font-weight: 700; font-variant-numeric: tabular-nums; flex-shrink: 0; }
 .rank-empty { color: var(--sub); font-size: 13px; text-align: center; padding: 24px 0; }
 .rank-tip { font-size: 11px; color: var(--sub); margin-bottom: 10px; }
@@ -492,6 +512,14 @@ body {
   border-radius: 10px;
   box-shadow: 0 10px 30px rgba(0,0,0,.45);
 }
+
+/* ---------- 全局滚动条美化（弹窗等可滚动区域） ---------- */
+.modal { scrollbar-width: thin; scrollbar-color: #33415e transparent; }
+.modal::-webkit-scrollbar { width: 6px; }
+.modal::-webkit-scrollbar-track { background: rgba(255,255,255,.03); border-radius: 3px; }
+.modal::-webkit-scrollbar-thumb { background: #33415e; border-radius: 3px; }
+.modal::-webkit-scrollbar-thumb:hover { background: #4a5d88; }
+.modal::-webkit-scrollbar-corner { background: transparent; }
 
 /* 右下角 GitHub 链接 */
 .github-link {

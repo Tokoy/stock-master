@@ -22,8 +22,8 @@ const STOCKS = {
   },
   damai: {
     key: 'damai',
-    name: '大米科技',
-    tag: 'DM',
+    name: 'DMI-大米科技',
+    tag: 'DMI',
     price: 50,
     duration: 60,
     engine: 'damai',
@@ -427,7 +427,7 @@ const Game = {
           <div class="rank-row">
             <span class="rank-no ${i < 3 ? 'top' : ''}">${i + 1}</span>
             <span class="rank-name">${escapeHtml(r.name)}</span>
-            <span class="rank-title">${escapeHtml(r.stock)} ${escapeHtml(r.title)}</span>
+            <span class="rank-title"><span class="rank-stock">${escapeHtml(r.stock)}</span> ${escapeHtml(r.title)}</span>
             <span class="rank-profit ${r.profit >= 0 ? 'up' : 'down'}">${(r.rate * 100).toFixed(1)}%</span>
           </div>`).join('');
       }
