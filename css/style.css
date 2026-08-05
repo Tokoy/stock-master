@@ -142,6 +142,60 @@ body {
 }
 #chart { display: block; }
 
+/* ---------- 新闻栏（事件卡滚动快讯） ---------- */
+.news-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  height: 34px;
+  background: #0d1420;
+  border: 1px solid #232d42;
+  border-radius: 8px;
+  padding: 0 10px;
+  overflow: hidden;
+}
+.news-label {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gold);
+  background: rgba(240,185,11,.1);
+  border: 1px solid rgba(240,185,11,.3);
+  border-radius: 4px;
+  padding: 2px 8px;
+}
+.news-viewport {
+  flex: 1;
+  overflow: hidden;
+  height: 100%;
+  position: relative;
+}
+.news-track {
+  display: inline-flex;
+  align-items: center;
+  gap: 48px;
+  height: 100%;
+  white-space: nowrap;
+  padding-left: 100%;
+  animation: newsScroll linear infinite;
+  will-change: transform;
+}
+@keyframes newsScroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.news-item {
+  font-size: 13px;
+  color: #aab4c8;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.news-item.dim { color: #7a8499; }
+.news-item.hot-up   { color: #ff5c5f; font-weight: 700; }
+.news-item.hot-down { color: #34d399; font-weight: 700; }
+.news-item.hot-gold { color: #fbbf24; font-weight: 700; }
+
 /* ---------- 操作按钮 ---------- */
 .actions { display: flex; gap: 10px; margin-top: 12px; }
 
@@ -268,6 +322,97 @@ body {
 }
 .modal input:focus { border-color: var(--gold); }
 
+/* ---------- 选股卡片 ---------- */
+.stock-cards {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.stock-card {
+  flex: 1;
+  background: linear-gradient(160deg, #1e2940, #182036);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: transform .15s, border-color .2s, box-shadow .2s;
+  user-select: none;
+}
+.stock-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(240,185,11,.6);
+  box-shadow: 0 8px 24px rgba(0,0,0,.4);
+}
+.card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.card-emoji { font-size: 26px; }
+.card-name { font-size: 16px; font-weight: 800; }
+.card-tag {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--gold);
+  border: 1px solid rgba(240,185,11,.5);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+.card-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--sub);
+  margin-bottom: 6px;
+}
+.card-level {
+  color: #3ddc97;
+  border: 1px solid rgba(61,220,151,.4);
+  border-radius: 4px;
+  padding: 0 6px;
+  font-weight: 700;
+}
+.card-level.hard {
+  color: #ff5c5f;
+  border-color: rgba(255,92,95,.5);
+}
+.card-style { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+.card-desc { font-size: 11px; color: var(--sub); line-height: 1.5; margin-bottom: 10px; }
+.card-btn {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #3a2500;
+  background: linear-gradient(135deg, var(--gold), #f59e0b);
+  border-radius: 8px;
+  padding: 6px 0;
+}
+
+/* ---------- Toast（轻量提示，不弹窗） ---------- */
+.toast {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-80px);
+  z-index: 200;
+  background: rgba(22,29,43,.96);
+  border: 1px solid #31405e;
+  color: var(--text);
+  padding: 10px 22px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: 0 8px 30px rgba(0,0,0,.5);
+  transition: transform .3s cubic-bezier(.2,.9,.3,1.2);
+  pointer-events: none;
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+.toast.limit { border-color: var(--up); color: #ff8a8c; }
+.toast.down { border-color: var(--down); color: #6ee7b7; }
+
 .btn-primary {
   width: 100%;
   background: linear-gradient(135deg, var(--gold), #f59e0b);
@@ -291,7 +436,13 @@ body {
   padding: 16px;
   margin-bottom: 16px;
 }
-.result-name { font-size: 13px; color: var(--sub); margin-bottom: 4px; }
+.result-name { font-size: 13px; color: var(--sub); margin-bottom: 2px; }
+.result-stock {
+  font-size: 12px;
+  color: var(--gold);
+  margin-bottom: 4px;
+  font-weight: 600;
+}
 .result-profit { font-size: 32px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .result-rate { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 2px; }
 .result-detail { font-size: 12px; color: var(--sub); margin-top: 8px; }
@@ -388,4 +539,5 @@ body {
   .topbar { flex-wrap: wrap; }
   .stock { order: 3; width: 100%; justify-content: space-between; }
   .brand { font-size: 18px; }
+  .stock-cards { flex-direction: column; }
 }

@@ -1,14 +1,57 @@
 /* ============================================================
  * game.js —— 炒股达人 游戏主逻辑
- * 流程：输入姓名 → 60 秒模拟炒股 → 结算弹窗（称号/上传/再来一局）
+ * 流程：输入姓名 → 选股（SNK-格力士 / 大米科技）→ 模拟炒股 → 结算
+ *
+ * 大米科技（硬核模式）：隐藏剧本 + 事件卡（新闻栏滚动）+ 涨跌停
  * ============================================================ */
 'use strict';
 
-const GAME_DURATION = 60;        // 秒
 const INIT_CASH = 10000;         // 初始资金
-const INIT_PRICE = 100;          // 初始股价
 const TRADE_FEE_RATE = 0.0005;   // 手续费：交易额的 0.05%
-const STOCK_NAME = 'SNK-格力士'; // 股票名称（上传成绩用）
+
+/* ---------------- 股票配置 ---------------- */
+const STOCKS = {
+  snk: {
+    key: 'snk',
+    name: 'SNK-格力士',
+    tag: 'SNK',
+    price: 100,
+    duration: 60,
+    level: '新手',
+    style: '游资庄股',
+    desc: '快节奏收割，操作直接触发庄家反应',
+    engine: 'classic',
+    emoji: '🎯',
+  },
+  damai: {
+    key: 'damai',
+    name: '大米科技',
+    tag: 'DM',
+    price: 50,
+    duration: 90,
+    level: '硬核',
+    style: '事件驱动妖股',
+    desc: '隐藏剧本 · 事件卡 · 涨跌停',
+    engine: 'damai',
+    emoji: '🐉',
+  },
+};
+
+/* ---------------- 氛围新闻池（非事件的背景滚动） ---------------- */
+const AMBIENT_NEWS = [
+  '两市午后震荡，沪指小幅翻红',
+  '北向资金今日净流入 32 亿',
+  '半导体板块异动拉升，多股涨停',
+  '央行开展逆回购操作，流动性合理充裕',
+  '白酒股集体回调，资金转向题材股',
+  '证监会：将加强上市公司日常监管',
+  '新能源车销量大增，产业链集体走强',
+  '市场情绪回暖，涨停家数明显增加',
+  '机构：短期震荡不改中期向好格局',
+  'IPO 节奏放缓，次新股表现活跃',
+  '两市成交额连续三日破万亿',
+  '主力资金尾盘抢筹，多股直线拉升',
+];
 
 const $ = (id) => document.getElementById(id);
 
@@ -37,6 +80,8 @@ const FX = {
   },
   buy()  { this.tone(680, 0.1, 'triangle', 0.18); this.tone(920, 0.08, 'triangle', 0.12, 0.05); },
   sell() { this.tone(420, 0.1, 'triangle', 0.18); this.tone(300, 0.1, 'triangle', 0.14, 0.05); },
+  event() { this.tone(880, 0.09, 'square', 0.1); this.tone(1108, 0.12, 'square', 0.08, 0.08); },
+  limit() { this.tone(220, 0.25, 'sawtooth', 0.12); this.tone(180, 0.3, 'sawtooth', 0.1, 0.1); },
   win()  { [523, 659, 784, 1047].forEach((f, i) => this.tone(f, 0.22, 'triangle', 0.16, i * 0.13)); },
   lose() { [392, 330, 262, 196].forEach((f, i) => this.tone(f, 0.28, 'sawtooth', 0.08, i * 0.16)); },
 };
@@ -71,29 +116,123 @@ function fmtMoney(n) {
 function showModal(id) { $(id).classList.remove('hidden'); }
 function hideModal(id) { $(id).classList.add('hidden'); }
 
+/* ============================================================
+ * NewsBar —— 新闻栏（事件卡的展示载体，滚动快讯条）
+ * ============================================================ */
+const NewsBar = {
+  items: [],        // [{ text, cls }]
+  timer: null,
+
+  init() {
+    // 无操作时也保持有背景新闻滚动
+    this.renderAmbient();
+  },
+
+  _render() {
+    const track = $('news-track');
+    const html = this.items.map(it =>
+      `<span class="news-item ${it.cls || ''}">${escapeHtml(it.text)}</span>`
+    ).join('');
+    // 复制两份实现无缝循环滚动
+    track.innerHTML = html + html;
+    // 动画时长按内容量估算，保证匀速
+    const totalChars = this.items.reduce((s, it) => s + it.text.length, 0);
+    track.style.animationDuration = Math.max(24, totalChars * 0.5) + 's';
+  },
+
+  renderAmbient() {
+    const shuffled = AMBIENT_NEWS.slice().sort(() => Math.random() - 0.5);
+    this.items = shuffled.slice(0, 6).map(t => ({ text: t, cls: 'dim' }));
+    this._render();
+  },
+
+  // 事件新闻：插入到最前高亮，几秒后并入背景池继续滚动
+  pushEvent(rec) {
+    const cls = {
+      good: 'hot-up', limitup: 'hot-up', trap: 'hot-up',
+      bad: 'hot-down', limitdown: 'hot-down',
+      ambiguous: 'hot-gold',
+    }[rec.type] || 'hot-gold';
+    this.items.unshift({ text: `${rec.emoji} ${rec.text}`, cls });
+    if (this.items.length > 8) this.items.pop();
+    this._render();
+
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => {
+      // 事件新闻降级为普通条目继续滚动
+      this.items = this.items.map((it, i) => i === 0 ? { ...it, cls: 'dim' } : it);
+      this._render();
+    }, 6000);
+  },
+};
+
+/* ---------------- Toast（轻量提示，不弹窗） ---------------- */
+let toastTimer = null;
+function toast(msg, type = 'info') {
+  let el = $('toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'toast';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.className = 'toast show ' + type;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = 'toast'; }, 2000);
+}
+
 /* ---------------- 游戏主体 ---------------- */
 const Game = {
   status: 'idle',   // idle | playing | ended
   name: '玩家',
+  stockKey: 'snk',
+  stock: STOCKS.snk,
   cash: INIT_CASH,
   shares: 0,
   cost: 0,
-  timeLeft: GAME_DURATION,
+  timeLeft: STOCKS.snk.duration,
   timerId: null,
   market: null,
   chart: null,
   lastResult: null,
+  lastLimitDir: null, // 涨跌停状态去重提示用
 
   init() {
     this.chart = new KLineChart($('chart'));
-    this.market = new MarketEngine(INIT_PRICE);
-    this.chart.curPrice = INIT_PRICE;
+    this.market = new MarketEngine(STOCKS.snk.price);
+    this.chart.curPrice = STOCKS.snk.price;
     this.chart.costPrice = null;
     this.chart.setData(this.market.bars);
+    NewsBar.init();
     this.bindEvents();
+    this.renderStockCards();
     this.render();
     showModal('name-modal');
     $('name-input').focus();
+  },
+
+  /* ---------- 选股卡片渲染 ---------- */
+  renderStockCards() {
+    const wrap = $('stock-cards');
+    wrap.innerHTML = Object.values(STOCKS).map(st => `
+      <div class="stock-card" data-key="${st.key}">
+        <div class="card-head">
+          <span class="card-emoji">${st.emoji}</span>
+          <span class="card-name">${st.name}</span>
+          <span class="card-tag">${st.tag}</span>
+        </div>
+        <div class="card-meta">
+          <span>¥${st.price.toFixed(0)} 起</span>
+          <span>${st.duration}s</span>
+          <span class="card-level ${st.level === '硬核' ? 'hard' : ''}">${st.level}</span>
+        </div>
+        <div class="card-style">${st.style}</div>
+        <div class="card-desc">${st.desc}</div>
+        <div class="card-btn">点击选择 →</div>
+      </div>`).join('');
+    wrap.querySelectorAll('.stock-card').forEach(card => {
+      card.addEventListener('click', () => this.startGame(card.dataset.key));
+    });
   },
 
   bindEvents() {
@@ -101,8 +240,7 @@ const Game = {
     $('btn-sell10').addEventListener('click', () => this.sell(10, false));
     $('btn-allin').addEventListener('click', () => this.allIn());
     $('btn-clear').addEventListener('click', () => this.clearAll());
-    $('btn-start').addEventListener('click', () => this.startGame());
-    $('name-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') this.startGame(); });
+    $('name-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') this.startGame(this.stockKey); });
     $('btn-upload').addEventListener('click', () => this.uploadScore());
     $('btn-again').addEventListener('click', () => this.again());
     $('btn-rank-from-start').addEventListener('click', () => this.showRank());
@@ -114,12 +252,22 @@ const Game = {
   },
 
   totalAssets() {
-    return this.cash + this.shares * (this.market ? this.market.price : INIT_PRICE);
+    return this.cash + this.shares * (this.market ? this.market.price : this.stock.price);
   },
+
+  /* ---------- 涨跌停状态（大米科技事件卡触发） ---------- */
+  isLimitUp()   { return !!(this.market && this.market.limit && this.market.limit.dir === 'up'); },
+  isLimitDown() { return !!(this.market && this.market.limit && this.market.limit.dir === 'down'); },
+
 
   /* ---------- 交易（含 0.05% 手续费，直接扣现金） ---------- */
   buy(shares, allIn) {
     if (this.status !== 'playing') return;
+    if (this.isLimitUp()) {
+      toast('🚫 涨停封板，买不进！', 'limit');
+      FX.limit();
+      return;
+    }
     const price = this.market.price;
     const cost = price * shares;               // 成交额
     const spend = cost * (1 + TRADE_FEE_RATE); // 实际花费 = 成交额 + 手续费
@@ -140,6 +288,11 @@ const Game = {
 
   sell(shares, allOut) {
     if (this.status !== 'playing') return;
+    if (this.isLimitDown()) {
+      toast('🚫 跌停封板，卖不出！', 'limit');
+      FX.limit();
+      return;
+    }
     if (shares <= 0 || this.shares < shares) return;
     const price = this.market.price;
 
@@ -168,19 +321,71 @@ const Game = {
   },
 
   /* ---------- 游戏流程 ---------- */
-  startGame() {
+  startGame(key) {
+    const st = STOCKS[key] || STOCKS.snk;
+    this.stockKey = st.key;
+    this.stock = st;
+
     const input = $('name-input');
     this.name = input.value.trim().slice(0, 12) || '匿名玩家';
     hideModal('name-modal');
+
     this.status = 'playing';
+    this.cash = INIT_CASH;
+    this.shares = 0;
+    this.cost = 0;
+    this.timeLeft = st.duration;
+    this.lastLimitDir = null;
+    this.lastResult = null;
+
+    // 构造对应引擎：大米科技用事件驱动妖股引擎
+    this.market = st.engine === 'damai'
+      ? new DamaiMarketEngine(st.price, st.duration)
+      : new MarketEngine(st.price);
+    this.market.onEvent = (rec) => this.onMarketEvent(rec);
+
+    this.chart.curPrice = st.price;
+    this.chart.costPrice = null;
+    this.chart.marks = [];
+    this.chart.events = [];
+    this.chart.setData(this.market.bars);
+    NewsBar.renderAmbient();
+
     clearInterval(this.timerId);
     this.timerId = setInterval(() => this.tick(), 1000);
     this.tick(); // 立即走第一根K线
   },
 
+  /* ---------- 事件卡触发回调：新闻栏 + 图表标记 + 涨跌停提示 ---------- */
+  onMarketEvent(rec) {
+    NewsBar.pushEvent(rec);
+    this.chart.addEventMark(rec);
+    FX.event();
+    if (rec.type === 'limitup') {
+      toast('🔴 重大利好，涨停封板！', 'limit');
+      this.lastLimitDir = 'up';
+      FX.limit();
+    } else if (rec.type === 'limitdown') {
+      toast('🟢 重大利空，跌停封板！', 'limit');
+      this.lastLimitDir = 'down';
+      FX.limit();
+    }
+    this.render();
+  },
+
   tick() {
     this.timeLeft--;
     this.market.tick();
+
+    // 涨跌停开板提示
+    const lim = this.market.limit;
+    if (lim && lim.dir !== this.lastLimitDir) {
+      this.lastLimitDir = lim.dir;
+    } else if (!lim && this.lastLimitDir) {
+      toast('开板了，可以正常交易', 'info');
+      this.lastLimitDir = null;
+    }
+
     this.render();
     this.chart.setData(this.market.bars);
     if (this.timeLeft <= 0) this.endGame();
@@ -199,6 +404,7 @@ const Game = {
     $('result-title').textContent = t.title;
     $('result-comment').textContent = t.comment;
     $('result-name').textContent = this.name;
+    $('result-stock').textContent = this.stock.name;
     $('result-profit').textContent = fmtMoney(profit);
     $('result-profit').className = 'result-profit ' + (profit >= 0 ? 'up' : 'down');
     $('result-rate').textContent = (rate >= 0 ? '+' : '') + (rate * 100).toFixed(2) + '%';
@@ -210,7 +416,7 @@ const Game = {
 
     this.lastResult = {
       name: this.name,
-      stock: STOCK_NAME,
+      stock: this.stock.name,
       profit: Math.round(profit * 100) / 100,
       rate: Math.round(rate * 10000) / 10000,
       title: t.title,
@@ -288,7 +494,7 @@ const Game = {
     a.remove();
   },
 
-  /* ---------- 再来一局 ---------- */
+  /* ---------- 再来一局（回到选股） ---------- */
   again() {
     hideModal('result-modal');
     hideModal('rank-modal');
@@ -298,13 +504,15 @@ const Game = {
     this.cash = INIT_CASH;
     this.shares = 0;
     this.cost = 0;
-    this.timeLeft = GAME_DURATION;
+    this.timeLeft = STOCKS.snk.duration;
     this.lastResult = null;
-    this.market = new MarketEngine(INIT_PRICE);
-    this.chart.curPrice = INIT_PRICE;
+    this.market = new MarketEngine(STOCKS.snk.price);
+    this.chart.curPrice = STOCKS.snk.price;
     this.chart.costPrice = null;
     this.chart.marks = [];
+    this.chart.events = [];
     this.chart.setData(this.market.bars);
+    NewsBar.renderAmbient();
 
     $('name-input').value = this.name;
     this.render();
@@ -315,8 +523,13 @@ const Game = {
 
   /* ---------- 界面渲染 ---------- */
   render() {
-    const price = this.market ? this.market.price : INIT_PRICE;
-    const up = price >= INIT_PRICE;
+    const st = this.stock;
+    const price = this.market ? this.market.price : st.price;
+    const up = price >= st.price;
+
+    // 顶栏股票名 / 标题
+    $('top-stock-name').innerHTML = `${st.name} <span class="tag" id="top-stock-tag">${st.tag}</span>`;
+    $('chart-title').textContent = `${st.name} · 模拟盘`;
 
     // 同步现价 / 成本价到图表（现价虚线、成本虚线）
     this.chart.curPrice = price;
@@ -324,7 +537,7 @@ const Game = {
 
     $('top-price').textContent = price.toFixed(2);
     $('top-price').className = 'stock-price ' + (up ? 'up' : 'down');
-    const chg = (price - INIT_PRICE) / INIT_PRICE * 100;
+    const chg = (price - st.price) / st.price * 100;
     $('top-change').textContent = (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%';
     $('top-change').className = 'stock-change ' + (up ? 'up' : 'down');
 
@@ -344,12 +557,14 @@ const Game = {
     $('cur-price').textContent = price.toFixed(2);
     $('market-value').textContent = fmtMoney(this.shares * price);
 
-    // 按钮可用性（需预留手续费）
+    // 按钮可用性（预留手续费 + 涨跌停封板限制）
     const playing = this.status === 'playing';
-    $('btn-buy10').disabled = !playing || this.cash < price * 10 * (1 + TRADE_FEE_RATE);
-    $('btn-sell10').disabled = !playing || this.shares < 10;
-    $('btn-allin').disabled = !playing || this.cash < price * (1 + TRADE_FEE_RATE);
-    $('btn-clear').disabled = !playing || this.shares === 0;
+    const limitUp = this.isLimitUp();
+    const limitDown = this.isLimitDown();
+    $('btn-buy10').disabled = !playing || limitUp || this.cash < price * 10 * (1 + TRADE_FEE_RATE);
+    $('btn-sell10').disabled = !playing || limitDown || this.shares < 10;
+    $('btn-allin').disabled = !playing || limitUp || this.cash < price * (1 + TRADE_FEE_RATE);
+    $('btn-clear').disabled = !playing || limitDown || this.shares === 0;
 
     // 倒计时 + 进度条
     const left = Math.max(0, this.timeLeft);
@@ -357,18 +572,20 @@ const Game = {
     const tEl = $('timer');
     tEl.textContent = String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
     tEl.className = 'timer' + (this.status === 'playing' && left <= 10 ? ' danger' : '');
-    $('time-bar').style.width = (left / GAME_DURATION * 100) + '%';
+    $('time-bar').style.width = (left / st.duration * 100) + '%';
 
-    // 状态提示（中性，无播报）
+    // 状态提示
     if (this.status === 'idle') $('chart-status').textContent = '等待开始…';
     else if (this.status === 'ended') $('chart-status').textContent = '游戏结束';
+    else if (limitUp) $('chart-status').textContent = '涨停封板 🔴';
+    else if (limitDown) $('chart-status').textContent = '跌停封板 🟢';
     else $('chart-status').textContent = '进行中';
   },
 };
 
 /* ============================================================
  * buildShareCard —— 生成收益分享截图（竖版 PNG 卡片）
- * 内容：游戏名 / 玩家名 / 称号 / 收益 / 底部游戏地址二维码
+ * 内容：游戏名 / 玩家名 / 股票 / 称号 / 收益 / 底部游戏地址二维码
  * ============================================================ */
 const SHARE_URL = 'https://game.ikeno.top/';
 const SHARE_FONT = '-apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif';
@@ -414,7 +631,7 @@ async function buildShareCard(rec) {
   ctx.fillText('📈 炒股达人', W / 2, 110);
   ctx.fillStyle = '#8b94a8';
   ctx.font = '18px ' + SHARE_FONT;
-  ctx.fillText('SNK-格力士 · 模拟炒股', W / 2, 150);
+  ctx.fillText((rec.stock || 'SNK-格力士') + ' · 模拟炒股', W / 2, 150);
 
   // 分隔线
   ctx.strokeStyle = 'rgba(255,255,255,0.12)';

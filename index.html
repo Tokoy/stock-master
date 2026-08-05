@@ -14,7 +14,7 @@
   <header class="topbar">
     <div class="brand">📈 炒股达人</div>
     <div class="stock">
-      <div class="stock-name">SNK-格力士 <span class="tag">SNK</span></div>
+      <div class="stock-name" id="top-stock-name">SNK-格力士 <span class="tag" id="top-stock-tag">SNK</span></div>
       <div class="stock-price" id="top-price">100.00</div>
       <div class="stock-change" id="top-change">+0.00%</div>
     </div>
@@ -28,12 +28,19 @@
   <main class="main">
     <section class="chart-section">
       <div class="chart-top">
-        <span class="chart-title">SNK-格力士 · 模拟盘</span>
+        <span class="chart-title" id="chart-title">SNK-格力士 · 模拟盘</span>
         <span class="chart-status" id="chart-status">等待开始…</span>
         <div class="time-bar"><div class="time-bar-fill" id="time-bar"></div></div>
       </div>
       <div class="chart-canvas-wrap">
         <canvas id="chart"></canvas>
+      </div>
+      <!-- 新闻栏：事件卡以滚动新闻条展示 -->
+      <div class="news-bar" id="news-bar">
+        <div class="news-label">📰 快讯</div>
+        <div class="news-viewport">
+          <div class="news-track" id="news-track"></div>
+        </div>
       </div>
       <div class="actions">
         <button class="btn btn-buy" id="btn-buy10">买 10 股</button>
@@ -62,16 +69,18 @@
   </main>
 </div>
 
-<!-- 姓名弹窗 -->
+<!-- 姓名弹窗 + 选股 -->
 <div class="modal-mask" id="name-modal">
   <div class="modal">
     <div class="modal-emoji">🎮</div>
     <h2>欢迎来到炒股达人</h2>
-    <p class="modal-sub">模拟炒股 60 秒，看看你是股神还是韭菜？</p>
+    <p class="modal-sub">输入你的名字，选一只股票开始模拟炒股</p>
     <input type="text" id="name-input" placeholder="请输入你的名字" maxlength="12" autocomplete="off">
-    <button class="btn btn-primary" id="btn-start">开始模拟</button>
+    <div class="stock-cards" id="stock-cards">
+      <!-- 卡片由 JS 渲染：SNK-格力士 / 大米科技 -->
+    </div>
     <button class="btn btn-ghost" id="btn-rank-from-start">查看玩家排行</button>
-    <p class="modal-foot">SNK-格力士 · 初始资金 ¥10,000 · 1 分钟一轮</p>
+    <p class="modal-foot">初始资金 ¥10,000 · 收益决定你的称号</p>
   </div>
 </div>
 
@@ -83,6 +92,7 @@
     <p class="modal-sub" id="result-comment">天台风大，记得多穿件衣服。</p>
     <div class="result-box">
       <div class="result-name" id="result-name">玩家</div>
+      <div class="result-stock" id="result-stock">SNK-格力士</div>
       <div class="result-profit" id="result-profit">-¥3,200.00</div>
       <div class="result-rate" id="result-rate">-32.00%</div>
       <div class="result-detail">持仓 <span id="result-shares">0</span> 股 · 现价 <span id="result-price">100.00</span></div>

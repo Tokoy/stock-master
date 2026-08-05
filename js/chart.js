@@ -12,6 +12,7 @@ class KLineChart {
     this.ctx = canvas.getContext('2d');
     this.bars = [];
     this.marks = [];        // 交易标记 { index, type: 'B' | 'S' }
+    this.events = [];       // 事件标记 { index, emoji, text, type, dir }
     this.curPrice = null;   // 当前股价（用于现价虚线）
     this.costPrice = null;  // 当前持仓成本价（用于成本虚线，空仓为 null）
     this.hover = null; // { index, x, y }
@@ -67,6 +68,14 @@ class KLineChart {
   addMark(index, type) {
     this.marks.push({ index, type });
     if (this.marks.length > 40) this.marks.shift();
+    this.draw();
+  }
+
+  /* ---------- 添加事件标记（事件卡触发的新闻点） ---------- */
+  addEventMark(rec) {
+    // rec: { barIndex, emoji, text, type, dir }
+    this.events.push(rec);
+    if (this.events.length > 30) this.events.shift();
     this.draw();
   }
 
@@ -383,6 +392,32 @@ class KLineChart {
           ctx.fillStyle = '#fff';
           ctx.fillText(t, x, y + 8);
         });
+      }
+      ctx.textBaseline = 'alphabetic';
+    }
+
+    /* ---------- 事件标记（K线顶部 ⓘ 徽章） ---------- */
+    if (this.events.length) {
+      ctx.font = '12px -apple-system, "PingFang SC", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      for (const ev of this.events) {
+        if (ev.barIndex < off || ev.barIndex >= n) continue;
+        const b = this.bars[ev.barIndex];
+        const x = this._x(ev.barIndex, L);
+        const y = Math.max(L.padT + 10, this._y(b.high, L, R) - 12);
+        // 气泡背景：涨红跌绿
+        const bubble = ev.dir === 'up' ? '#e02428' : (ev.dir === 'down' ? '#0f9d6a' : '#f0b90b');
+        ctx.fillStyle = bubble;
+        ctx.beginPath();
+        ctx.arc(x, y, 9, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        // emoji 图标
+        ctx.font = '11px -apple-system, "PingFang SC", sans-serif';
+        ctx.fillText(ev.emoji || 'ⓘ', x, y + 0.5);
       }
       ctx.textBaseline = 'alphabetic';
     }
