@@ -211,6 +211,12 @@ const Game = {
     $('btn-share-rank').addEventListener('click', () => this.shareResult());
     $('btn-share-save').addEventListener('click', () => this.saveShare());
     $('btn-share-close').addEventListener('click', () => hideModal('share-modal'));
+    // 排行榜标签切换（盈利榜 / 亏损榜）
+    $('rank-tabs').addEventListener('click', (e) => {
+      const tab = e.target.closest('.rank-tab');
+      if (!tab || tab.classList.contains('active')) return;
+      this.showRank(tab.dataset.mode);
+    });
   },
 
   totalAssets() {
@@ -411,17 +417,23 @@ const Game = {
     }
   },
 
-  /* ---------- 排行榜（从 Redis 实时拉取） ---------- */
-  async showRank() {
+  /* ---------- 排行榜（从 Redis 实时拉取；mode: profit 盈利榜 / loss 亏损榜） ---------- */
+  async showRank(mode = 'profit') {
     showModal('rank-modal');
+    // 高亮当前标签
+    document.querySelectorAll('#rank-tabs .rank-tab').forEach(t => {
+      t.classList.toggle('active', t.dataset.mode === mode);
+    });
     const el = $('rank-list');
     el.innerHTML = '<div class="rank-empty">加载中…</div>';
     // 没有本局成绩时不可分享（从开始弹窗进入排行榜的场景）
     $('btn-share-rank').disabled = !this.lastResult;
     try {
-      const list = await fetchRanking(20);
+      const list = mode === 'loss' ? await fetchLossRanking(20) : await fetchRanking(20);
       if (!list.length) {
-        el.innerHTML = '<div class="rank-empty">排行榜还是空的，快来抢第一名！</div>';
+        el.innerHTML = mode === 'loss'
+          ? '<div class="rank-empty">亏损榜还是空的，快来创造“最惨”记录！</div>'
+          : '<div class="rank-empty">排行榜还是空的，快来抢第一名！</div>';
       } else {
         el.innerHTML = list.map((r, i) => `
           <div class="rank-row">

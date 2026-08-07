@@ -52,6 +52,27 @@ async function fetchRanking(limit = 20) {
   return list;
 }
 
+/** 拉取亏损榜 top N（按收益升序，亏得最多的排第一，只含亏损记录） */
+async function fetchLossRanking(limit = 20) {
+  // 多取一些再过滤，保证亏损记录能凑满 limit 条
+  const raw = await redisCmd('zrange', RANK_KEY, 0, 99, 'WITHSCORES');
+  const list = [];
+  for (let i = 0; i < raw.length; i += 2) {
+    let rec;
+    try {
+      rec = JSON.parse(raw[i]);
+    } catch (e) {
+      rec = { name: raw[i], title: '未知玩家' };
+    }
+    rec.profit = parseFloat(raw[i + 1]);
+    if (typeof rec.rate !== 'number') rec.rate = 0;
+    if (!rec.stock) rec.stock = '';
+    if (!rec.title) rec.title = '';
+    if (rec.profit < 0) list.push(rec);
+  }
+  return list.slice(0, limit);
+}
+
 /** 清空排行榜 */
 function clearRanking() {
   return redisCmd('del', RANK_KEY);

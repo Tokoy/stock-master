@@ -110,6 +110,10 @@
 <div class="modal-mask hidden" id="rank-modal">
   <div class="modal">
     <h2>🏆 玩家排行榜</h2>
+    <div class="rank-tabs" id="rank-tabs">
+      <button class="rank-tab active" data-mode="profit">📈 盈利榜</button>
+      <button class="rank-tab" data-mode="loss">📉 亏损榜</button>
+    </div>
     <div class="rank-list" id="rank-list"></div>
     <div class="rank-tip">成绩实时存储于 Upstash Redis</div>
     <div class="rank-btns">

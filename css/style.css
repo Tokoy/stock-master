@@ -440,6 +440,31 @@ body {
 }
 
 /* 排行榜 */
+.rank-tabs {
+  display: flex;
+  gap: 6px;
+  margin: 10px 0 2px;
+  padding: 4px;
+  background: rgba(255,255,255,.04);
+  border-radius: 10px;
+}
+.rank-tab {
+  flex: 1;
+  padding: 7px 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sub);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .2s;
+}
+.rank-tab:hover { color: var(--text); }
+.rank-tab.active {
+  background: var(--gold);
+  color: #1a2030;
+}
 .rank-list {
   max-height: 320px;
   overflow-y: auto;
